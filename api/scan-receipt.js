@@ -19,8 +19,8 @@ export default async function handler(req, res) {
 
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
     
-    // Oficiální aktivní model v Google API
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // Použijeme základní, 100% funkční model
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
       Jsi asistent pro zpracování dokladů a výpisů z banky.
@@ -52,6 +52,6 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   } catch (error) {
     console.error('API Error:', error);
-    return res.status(500).json({ error: 'Detail chyby: ' + (error.message || 'Neznámá chyba') });
+    return res.status(500).json({ error: 'Detail chyby: ' + (error.message || 'Neznámá chybička') });
   }
 }

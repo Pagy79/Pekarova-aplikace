@@ -29,43 +29,51 @@ export default async function handler(req, res) {
       }
     `;
 
-    // Přímé volání REST API bez knihoven
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: promptText },
+    // Seznam modelů – pokud první selže, zkusí automaticky druhý
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-3.5-flash'];
+    let lastError = null;
+
+    for (const modelName of modelsToTry) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
                 {
-                  inline_data: {
-                    mime_type: 'image/jpeg',
-                    data: base64Data,
-                  },
+                  parts: [
+                    { text: promptText },
+                    {
+                      inline_data: {
+                        mime_type: 'image/jpeg',
+                        data: base64Data,
+                      },
+                    },
+                  ],
                 },
               ],
-            },
-          ],
-        }),
+            }),
+          }
+        );
+
+        const apiData = await response.json();
+
+        if (response.ok && apiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+          const rawText = apiData.candidates[0].content.parts[0].text;
+          const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+          const parsedData = JSON.parse(cleanJson);
+          return res.status(200).json(parsedData);
+        } else {
+          lastError = apiData.error?.message || `Model ${modelName} vrátil chybu`;
+        }
+      } catch (err) {
+        lastError = err.message;
       }
-    );
-
-    const apiData = await response.json();
-
-    if (!response.ok) {
-      throw new Error(apiData.error?.message || 'Chyba při komunikaci s Google API');
     }
 
-    const rawText = apiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsedData = JSON.parse(cleanJson);
-
-    return res.status(200).json(parsedData);
+    throw new Error(lastError || 'Žádný z modelů nedokázal požadavek zpracovat.');
   } catch (error) {
     console.error('API Error:', error);
     return res.status(500).json({ error: 'Detail chyby: ' + (error.message || 'Neznámá chyba') });

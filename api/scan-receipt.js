@@ -13,33 +13,21 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'No image provided' });
     }
 
-    // Detekce formátu (PNG ze screenshotu vs JPEG z foťáku)
-    let mimeType = 'image/jpeg';
-    if (image.startsWith('data:image/png')) {
-      mimeType = 'image/png';
-    } else if (image.startsWith('data:image/webp')) {
-      mimeType = 'image/webp';
-    }
-
+    // Extrakce čistých base64 dat
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
     
-    // Použijeme stabilní a rychlý model
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    // Zaručený model pro multimodalitu
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
-      Jsi asistent pro zpracování finančních dokladů a výpisů z účtu.
-      Analyzuj přiložený obrázek. Může to být buď jedna papírová účtenka, NEBO screenshot z bankovní aplikace s více transakcemi.
-      
-      Pravidla:
-      1. Pokud je na obrázku více transakcí (např. výpis z banky), VŽDY vyber tu NEJNOVĚJŠÍ / PRVNÍ ZHORA (nejvýše položenou transakci v seznamu).
-      2. Ignoruj znaménko mínus, částka musí být kladné číslo.
-      3. Urči kategorii podle obchodníka (např. Potraviny, Lékárna, Bydlení, Zábava, Služby). Pokud si nejsi jistý, použij kategorii "Neočekávané výdaje".
-
-      Vrať POUZE čistý JSON formát v tomto tvaru (bez jakéhokoliv markdownu nebo textu okolo):
+      Jsi asistent pro zpracování dokladů a výpisů z banky.
+      Analyzuj přiložený obrázek.
+      Pokud je tam více transakcí, vyber tu PRVNÍ ZHORA.
+      Vrať POUZE čistý JSON (bez jakékoliv omáčky nebo markdownu):
       {
-        "store": "Název obchodu nebo příjemce",
-        "amount": 123.45,
-        "category": "Kategorie",
+        "store": "Název obchodu",
+        "amount": 100,
+        "category": "Potraviny",
         "date": "2026-07-21"
       }
     `;
@@ -49,7 +37,7 @@ export default async function handler(req, res) {
       {
         inlineData: {
           data: base64Data,
-          mimeType: mimeType,
+          mimeType: 'image/jpeg',
         },
       },
     ]);
@@ -60,7 +48,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json(data);
   } catch (error) {
-    console.error('Error processing receipt:', error);
-    return res.status(500).json({ error: 'Failed to process image: ' + error.message });
+    console.error('API Error:', error);
+    return res.status(500).json({ error: error.message || 'Chyba při zpracování obrázku' });
   }
 }

@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -8,21 +8,22 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { image } = req.body;
-    if (!image) {
-      return res.status(400).json({ error: 'No image provided' });
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: 'Chybí GEMINI_API_KEY ve Vercelu!' });
     }
 
-    // Extrakce čistých base64 dat
+    const { image } = req.body;
+    if (!image) {
+      return res.status(400).json({ error: 'Nebyl poslán žádný obrázek.' });
+    }
+
     const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
-    
-    // Zaručený model pro multimodalitu
     const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
     const prompt = `
       Jsi asistent pro zpracování dokladů a výpisů z banky.
       Analyzuj přiložený obrázek.
-      Pokud je tam více transakcí, vyber tu PRVNÍ ZHORA.
+      Pokud je tam více transakcí, vyber tu PRVNÍ ZHORA (nejnovější).
       Vrať POUZE čistý JSON (bez jakékoliv omáčky nebo markdownu):
       {
         "store": "Název obchodu",
@@ -49,6 +50,7 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
   } catch (error) {
     console.error('API Error:', error);
-    return res.status(500).json({ error: error.message || 'Chyba při zpracování obrázku' });
+    // Vracíme přesný detail chyby přímo do mobilu!
+    return res.status(500).json({ error: 'Detail chyby: ' + (error.message || 'Neznámá chyba') });
   }
 }
